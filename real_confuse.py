@@ -15,7 +15,7 @@ import xlwt
 
 #gpu_id="1,2,3" ; #指定gpu id
 #配置环境  也可以在运行时临时指定 CUDA_VISIBLE_DEVICES='2,7' Python train.py
-#os.environ['CUDA_VISIBLE_DEVICES'] = '0' #这里的赋值必须是字符串，list会报错
+os.environ['CUDA_VISIBLE_DEVICES'] = '0' #这里的赋值必须是字符串，list会报错
 #device_ids=range(torch.cuda.device_count())  #torch.cuda.device_count()=2
 
 
@@ -100,15 +100,9 @@ def main():
     ]
 
     device = torch.device('cuda')
-    maml = Meta(args, config).to(device)
+    maml = torch.load("RML_1shot_true-origin-maml.pkl").to(device)
     #maml = torch.nn.DataParallel(maml)  # 前提是model已经.cuda() 了
-    tmp = filter(lambda x: x.requires_grad, maml.parameters())
-    num = sum(map(lambda x: np.prod(x.shape), tmp))
-    print(maml)
-    print('Total trainable tensors:', num)
-    print("Total number of paramerters in networks is {}  ".format(sum(x.numel() for x in maml.parameters())))
 
-    # batchsz here means total episode number
     mini = MiniImagenet(mode='train', n_way=args.n_way, k_shot=args.k_spt,
                         k_query=args.k_qry,
                         batchsz=4000)
@@ -127,16 +121,13 @@ def main():
     for epoch in range(args.epoch//4000):
         # fetch meta_batch sz num of episode each time
         db = DataLoader(mini, args.task_num, shuffle=True, num_workers=1, pin_memory=True)
-        print("===len(db)===")
-        # for each in db:
-        # print(each)
-        # print(each[0].shape)
-        # print('打印db')
-        # print(db[0])
-        print('测试')
-        print(len(db))
-        print("===end of db===")
-
+        #Dataset,batch_zsize,shuffle,num_workers
+        #for each in mini:
+        #    print(each)
+        #print('打印db')
+        #print(db[0])
+        #print('测试')
+        #print(len(db))
         for step, (x_spt, y_spt, x_qry, y_qry) in enumerate(db):#从get_item出来
             #print(len(x_spt))
             #print(len(x_spt[0]))
@@ -145,35 +136,24 @@ def main():
             #print(len(x_spt[0][0][0][0]))
             x_spt, y_spt, x_qry, y_qry = x_spt.to(device), y_spt.to(device), x_qry.to(device), y_qry.to(device)
             #print("x_spt_BEFORE: ", x_spt[0][0][0][0][0])
-            print("===x_spt.shape before maml in miniimagenet_train===")
-            print(x_spt.shape)
             accs = maml(x_spt, y_spt, x_qry, y_qry)
 
-            torch.save(maml, 'RML_5shot_maml.pkl')
+            #torch.save(maml, 'RML_1shot_aten_maml.pkl')
 
             if step % 30 == 0:
                 print('step:', step, '\ttraining acc:', accs)
 
             if step % 500 == 0:  # evaluation
                 db_test = DataLoader(mini_test, 1, shuffle=True, num_workers=1, pin_memory=True)
-                print("===len db_test===")
-                # for each in db_test:
-                # print(each)
-                # print(each[0].shape)
-                # print('打印db_test')
-                # print(db_test[0])
-                print('测试')
-                print(len(db_test))
-                print("===end of db_test===")
                 accs_all_test = []
 
                 for x_spt, y_spt, x_qry, y_qry in db_test:
                     x_spt, y_spt, x_qry, y_qry = x_spt.squeeze(0).to(device), y_spt.squeeze(0).to(device), \
                                                  x_qry.squeeze(0).to(device), y_qry.squeeze(0).to(device)
-                    print("===shape====")
-                    print("before", x_spt.shape)
-                    accs = maml.finetunning(x_spt, y_spt, x_qry, y_qry)
+
+                    accs,wbook = maml.confuse(x_spt, y_spt, x_qry, y_qry)
                     accs_all_test.append(accs)
+                    wbook.save("MAML_RML1shot_step" + str(step) + ".xls")
 
                 # [b, update_step+1]
                 accs = np.array(accs_all_test).mean(axis=0).astype(np.float16)
@@ -183,7 +163,7 @@ def main():
                 test_accs.append(m_accs)
                 sheet.write(index, col, str(m_accs))
                 col = col + 1
-                workbook.save("RML_5shot_maml.xls")  # 保存工作簿
+                workbook.save("RML_1shot_MAML_acc.xls")  # 保存工作簿
                 print('Test acc:', accs)
                 print("---all best test accs---")
                 print(test_accs)
@@ -193,7 +173,7 @@ def main():
 if __name__ == '__main__':
 
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('--epoch', type=int, help='epoch number', default=300000)
+    argparser.add_argument('--epoch', type=int, help='epoch number', default=4000)
     argparser.add_argument('--n_way', type=int, help='n way', default=5)
     argparser.add_argument('--k_spt', type=int, help='k shot for support set', default=1)
     argparser.add_argument('--k_qry', type=int, help='k shot for query set', default=15)

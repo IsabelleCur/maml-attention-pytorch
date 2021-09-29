@@ -28,21 +28,21 @@ class Learner(nn.Module):
         self.config = config
 
         # this dict contains all tensors needed to be optimized
-        self.vars = nn.ParameterList()
+        #self.vars = nn.ParameterList()
         # running_mean and running_var
-        self.vars_bn = nn.ParameterList()#空列表？
+        #self.vars_bn = nn.ParameterList()#空列表？
         
-        
+
         for i, (name, param) in enumerate(self.config):
             if name is 'conv2d':
                 # [ch_out, ch_in, kernelsz, kernelsz]
                 #w = nn.Parameter(torch.ones(*param[:4]))
-                w = nn.Parameter(torch.ones(*param[:4], device='cuda'))
+                #w = nn.Parameter(torch.ones(*param[:4], device='cuda'))
                 # gain=1 according to cbfin's implementation
-                torch.nn.init.kaiming_normal_(w)#初始化的结果接在ParameterList后面
-                self.vars.append(w)
+                #torch.nn.init.kaiming_normal_(w)#初始化的结果接在ParameterList后面
+                #self.vars.append(w)
                 # [ch_out]
-                self.vars.append(nn.Parameter(torch.zeros(param[0], device='cuda')))
+                #self.vars.append(nn.Parameter(torch.zeros(param[0], device='cuda')))
                 self.conv1=ComplexConv2d(param[1], param[0], (param[2],param[3]), param[4],param[5])
 
             elif name is 'convt2d':
@@ -51,10 +51,10 @@ class Learner(nn.Module):
                 w = nn.Parameter(torch.ones(*param[:4], device='cuda'))
                 # gain=1 according to cbfin's implementation
                 torch.nn.init.kaiming_normal_(w)
-                self.vars.append(w)
+                #self.vars.append(w)
                 # [ch_in, ch_out]
                 #self.vars.append(nn.Parameter(torch.zeros(param[1])))
-                self.vars.append(nn.Parameter(torch.zeros(param[1], device='cuda')))
+                #self.vars.append(nn.Parameter(torch.zeros(param[1], device='cuda')))
 
             elif name is 'linear':
                 # [ch_out, ch_in]
@@ -62,22 +62,22 @@ class Learner(nn.Module):
                 w = nn.Parameter(torch.ones(*param, device='cuda'))
                 # gain=1 according to cbfinn's implementation
                 torch.nn.init.kaiming_normal_(w)
-                self.vars.append(w)
+                #self.vars.append(w)
                 # [ch_out]
-                self.vars.append(nn.Parameter(torch.zeros(param[0], device='cuda')))
+                #self.vars.append(nn.Parameter(torch.zeros(param[0], device='cuda')))
                 self.fc1=ComplexLinear(param[1], param[0])
 
             elif name is 'bn':
                 # [ch_out]
                 w = nn.Parameter(torch.ones(param[0], device='cuda'))
-                self.vars.append(w)#也不归一化
+                #self.vars.append(w)#也不归一化
                 # [ch_out]
-                self.vars.append(nn.Parameter(torch.zeros(param[0], device='cuda')))
+                #self.vars.append(nn.Parameter(torch.zeros(param[0], device='cuda')))
                 self.bn=ComplexBatchNorm2d(param[0])
                 # must set requires_grad=False
                 running_mean = nn.Parameter(torch.zeros(param[0], device='cuda'), requires_grad=False)
                 running_var = nn.Parameter(torch.ones(param[0], device='cuda'), requires_grad=False)
-                self.vars_bn.extend([running_mean, running_var])
+                #self.vars_bn.extend([running_mean, running_var])
                 
             elif name is 'multihattention':
                 multihead_attn=nn.MultiheadAttention(param[0],param[1])
@@ -163,18 +163,18 @@ class Learner(nn.Module):
             #print(name)
             #print(idx)
             if name is 'conv2d':
-                w, b = vars[idx], vars[idx + 1]#id=0 w=vars[0] b=vars[1]
+               # w, b = vars[idx], vars[idx + 1]#id=0 w=vars[0] b=vars[1]
                 #print("Atention!!")
                 #print(len(w[0]))
                 #print(w)
                 # remember to keep synchrozied of forward_encoder and forward_decoder!
                 print('in:', x.shape)
                 x = self.conv1(x)
-                idx += 2
-                print('w的size:',w.shape,'\tout:',b.shape)
+                #idx += 2
+                #print('w的size:',w.shape,'\tout:',b.shape)
                 print(name, param, '\tout:', x.shape)
             elif name is 'convt2d':
-                w, b = vars[idx], vars[idx + 1]
+                #w, b = vars[idx], vars[idx + 1]
                 # remember to keep synchrozied of forward_encoder and forward_decoder!
                 x = F.conv_transpose2d(x, w, b, stride=param[4], padding=param[5])
                 idx += 2
@@ -285,4 +285,7 @@ class Learner(nn.Module):
         override this function since initial parameters will return with a generator.
         :return:
         """
+        #在meta中要用到vars这些参数
+        #vars=nn.ParameterList()
+        #由一个空参数列表 写入参数
         return self.vars

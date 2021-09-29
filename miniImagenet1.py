@@ -11,7 +11,7 @@ import pickle
 
 import pandas as pd
 from numpy import transpose
-
+#实验一
 
 class MiniImagenet(Dataset):
     """
@@ -64,19 +64,23 @@ class MiniImagenet(Dataset):
         #print(snrs)
         X = [] #输入的sample 2*128的list
         lbl = [] #需要分类的label(mod,snr)
-        for mod in mods:
-            for j in [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
-
-                X.append(Xd[(mod, snrs[j])])
-                for i in range(Xd[(mod, snrs[j])].shape[0]):  lbl.append((mod, snrs[j]))
-
-        X = np.vstack(X)
-        #X=X.tolist()
         #for mod in mods:
+        #    for j in [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
 
-            #X.append(Xd[(mod, 0)])
-            #for i in range(Xd[(mod, 0)].shape[0]):  lbl.append((mod, 0))
+        #        X.append(Xd[(mod, snrs[j])])
+        #        for i in range(Xd[(mod, snrs[j])].shape[0]):  lbl.append((mod, snrs[j]))
+
         #X = np.vstack(X)
+        #X=X.tolist()
+        #print("-----!!!!!-----")
+        for mod in mods:
+
+            X.append(Xd[(mod, 0)])
+            for i in range(Xd[(mod, 0)].shape[0]):
+                lbl.append((mod, 0))
+                #print(len(Xd[(mod, 0)][i]))#2
+                #print(len(Xd[(mod, 0)][i][0]))#128
+        X = np.vstack(X)
 
         #print(X[0])
         #print(X[0][0])

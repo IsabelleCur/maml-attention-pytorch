@@ -11,12 +11,12 @@ Based on https://openreview.net/forum?id=H1T2hmZAb
 
 import torch
 from torch.nn import Module, Parameter, init
-from torch.nn import Conv2d, Linear, BatchNorm1d, BatchNorm2d
+from torch.nn import Conv2d, Linear, BatchNorm1d, BatchNorm2d, LayerNorm
 from torch.nn import ConvTranspose2d
 from complexFunctions import complex_relu, complex_max_pool2d, complex_avg_pool2d
 from complexFunctions import complex_dropout, complex_dropout2d
 
-def apply_complex(fr, fi, input):
+def apply_complex(fr, fi, input):#\用在行结尾作续行符，以下其实仍是复数乘法
     return (fr(input.real)-fi(input.imag)).type(torch.complex64) \
             + 1j*(fr(input.imag)+fi(input.real)).type(torch.complex64)
 
@@ -113,10 +113,10 @@ class ComplexConv2d(Module):
 
 class ComplexLinear(Module):
 
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features, out_features, bias=True):
         super(ComplexLinear, self).__init__()
-        self.fc_r = Linear(in_features, out_features)
-        self.fc_i = Linear(in_features, out_features)
+        self.fc_r = Linear(in_features, out_features, bias)
+        self.fc_i = Linear(in_features, out_features, bias)
 
     def forward(self, input):
         return apply_complex(self.fc_r, self.fc_i, input)
@@ -134,6 +134,18 @@ class NaiveComplexBatchNorm1d(Module):
 
     def forward(self,input):
         return self.bn_r(input.real).type(torch.complex64) +1j*self.bn_i(input.imag).type(torch.complex64)
+
+class NaiveComplexLayerNorm(Module):
+    '''
+    Naive approach to complex layer norm, perform layer norm independently on real and imaginary part.
+    '''
+    def __init__(self, num_features):
+        super(NaiveComplexLayerNorm, self).__init__()
+        self.ln_r = LayerNorm(num_features)
+        self.ln_i = LayerNorm(num_features)
+
+    def forward(self,input):
+        return self.ln_r(input.real).type(torch.complex64) +1j*self.ln_i(input.imag).type(torch.complex64)
 
 class NaiveComplexBatchNorm2d(Module):
     '''
@@ -342,3 +354,4 @@ class ComplexBatchNorm1d(_ComplexBatchNorm):
 
         del Crr, Cri, Cii, Rrr, Rii, Rri, det, s, t
         return input
+

@@ -1,14 +1,15 @@
 import  torch
 from    torch import nn
+from    torch import optim
 from    torch.nn import functional as F
 from    torch.utils.data import TensorDataset, DataLoader
 from    torch import optim
 import  numpy as np
 
-from    complexLearner2 import Learner
+from    l2earner import Learner
 from    copy import deepcopy
-#import xlrd
 import xlwt
+
 
 class Meta(nn.Module):
     """
@@ -31,7 +32,7 @@ class Meta(nn.Module):
         self.update_step_test = args.update_step_test
 
 
-        self.net = Learner(config, args.imgc, args.imgsz).to(torch.device('cuda'))#self.net就是metaLearner这个module
+        self.net = Learner(config, args.imgc, args.imgsz)
         self.meta_optim = optim.Adam(self.net.parameters(), lr=self.meta_lr)#meta-level outer learning rate
 
 
@@ -39,7 +40,7 @@ class Meta(nn.Module):
 
     def clip_grad_by_norm_(self, grad, max_norm):
         """
-        in-place gradient clipping.就地梯度裁剪 by norm
+        in-place gradient clipping.
         :param grad: list of gradients
         :param max_norm: maximum norm allowable
         :return:
@@ -70,15 +71,7 @@ class Meta(nn.Module):
         :param y_qry:   [b, querysz]
         :return:
         """
-        #x_spt=x_spt.type(torch.complex64)
-        #x_qry=x_qry.type(torch.complex64)
-        #print('!!!!!!!!!!')
-        #print("x_spt_AFTER: ", x_spt[0][0][0][0][0][0])
-        #print(x_spt.size())
-        #print(x_spt.type())
         task_num, setsz, c_, h, w = x_spt.size()
-        #x_spt=x_spt.permute(5,1,2,3,4,0)#分GPU后遗症
-        #x_spt=x_spt.contiguous().view(num2,setsz,c_,h,w)
         #print(x_spt.size())
         #print(x_qry.size())
         querysz = x_qry.size(1)
@@ -90,19 +83,15 @@ class Meta(nn.Module):
         for i in range(task_num):
 
             # 1. run the i-th task and compute loss for k=0
-            logits = self.net(x_spt[i], vars=None, bn_training=True).to(torch.device('cuda'))#前向传播预测的值 net是complexLearner(config) 复数形式 出来的结果是abs()
-            #print(logits.type())
-            #print(y_spt[i].type())
-            loss = F.cross_entropy(logits, y_spt[i].long())#实数域
-            #print(loss.type())
-            #print(self.net.parameters())
-            grad = torch.autograd.grad(loss, self.net.parameters())#outputs, inputs
+            logits = self.net(x_spt[i], vars=None, bn_training=True)
+            loss = F.cross_entropy(logits, y_spt[i].long())
+            grad = torch.autograd.grad(loss, self.net.parameters())
             fast_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(grad, self.net.parameters())))
 
             # this is the loss and accuracy before first update
             with torch.no_grad():
                 # [setsz, nway]
-                logits_q = self.net(x_qry[i], self.net.parameters(), bn_training=True)#用net parameters
+                logits_q = self.net(x_qry[i], self.net.parameters(), bn_training=True)
                 loss_q = F.cross_entropy(logits_q, y_qry[i].long())
                 losses_q[0] += loss_q
 
@@ -110,7 +99,7 @@ class Meta(nn.Module):
                 correct = torch.eq(pred_q, y_qry[i]).sum().item()
                 corrects[0] = corrects[0] + correct#计算准确率
 
-            # this is the loss and accuracy after the first update 用fastweights
+            # this is the loss and accuracy after the first update
             with torch.no_grad():
                 # [setsz, nway]
                 logits_q = self.net(x_qry[i], fast_weights, bn_training=True)
@@ -123,7 +112,7 @@ class Meta(nn.Module):
 
             for k in range(1, self.update_step):
                 # 1. run the i-th task and compute loss for k=1~K-1
-                logits = self.net(x_spt[i], fast_weights, bn_training=True)#vars从None到fastweights
+                logits = self.net(x_spt[i], fast_weights, bn_training=True)
                 loss = F.cross_entropy(logits, y_spt[i])
                 # 2. compute grad on theta_pi
                 grad = torch.autograd.grad(loss, fast_weights)
@@ -147,14 +136,12 @@ class Meta(nn.Module):
         loss_q = losses_q[-1] / task_num
 
         # optimize theta parameters
-        self.meta_optim.zero_grad()#梯度初始化为0
-        #net: 前向传播求预测值
-        #criterion: 求loss
-        loss_q.backward()#反向传播求梯度
+        self.meta_optim.zero_grad()
+        loss_q.backward()
         # print('meta update')
         # for p in self.net.parameters()[:5]:
         # 	print(torch.norm(p).item())
-        self.meta_optim.step()#更新所有参数
+        self.meta_optim.step()
 
 
         accs = np.array(corrects) / (querysz * task_num)
@@ -171,6 +158,8 @@ class Meta(nn.Module):
         :param y_qry:   [querysz]
         :return:
         """
+        print("===x_spt.shape in m1eta===")
+        print(x_spt.shape)
         assert len(x_spt.shape) == 4
 
         querysz = x_qry.size(0)
@@ -182,10 +171,11 @@ class Meta(nn.Module):
         net = deepcopy(self.net)
 
         # 1. run the i-th task and compute loss for k=0
-        print("+++shape in complexmeta+++")
+        logits = net(x_spt)
+        print("+++shape in m1eta+++")
         print(x_spt.shape)
         logits = net(x_spt)
-        print("logits ",logits.shape)
+        print("logits ", logits.shape)
         print("+++++++")
         loss = F.cross_entropy(logits, y_spt.long())
         grad = torch.autograd.grad(loss, net.parameters())
@@ -226,7 +216,7 @@ class Meta(nn.Module):
 
             with torch.no_grad():
                 pred_q = F.softmax(logits_q, dim=1).argmax(dim=1)
-                correct = torch.eq(pred_q, y_qry.long()).sum().item()  # convert to numpy 取单元素张量的元素值
+                correct = torch.eq(pred_q, y_qry.long()).sum().item()  # convert to numpy
                 corrects[k + 1] = corrects[k + 1] + correct
 
 
@@ -315,13 +305,12 @@ class Meta(nn.Module):
                 #print(c_matrix[i][j]/querysz/2)
                 sheet.write(i, j, str(c_matrix[i][j]))
 
-        workbook.save("RML_1shot_CAMEL_con.xls")
+        workbook.save("RML_1shot_MAML_con.xls")
         del net
 
         accs = np.array(corrects) / querysz
 
         return accs,workbook
-
 
 
 

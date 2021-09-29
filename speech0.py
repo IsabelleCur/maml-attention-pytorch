@@ -1,6 +1,7 @@
 #import os
 import torch
-from torch.utils.data import Dataset
+import torchaudio
+from torch.utils.data import Dataset, DataLoader
 #from torchvision.transforms import transforms
 import numpy as np
 #import collections
@@ -46,15 +47,61 @@ class MiniImagenet(Dataset):
         self.k_shot = k_shot  # k-shot
         self.k_query = k_query  # for evaluation
         #batchsz在两个值之间切换
-        self.setsz = self.n_way * self.k_shot  # num of samples per set
-        self.querysz = self.n_way * self.k_query  # number of samples per set for evaluation
+        self.setsz = self.n_way * self.k_shot  # num of samples per set 5*15
+        self.querysz = self.n_way * self.k_query  # number of samples per set for evaluation 5*1
         self.mode=mode
         self.startidx = startidx  # index label not from 0, but from startidx
         print('shuffle DB :%s, b:%d, %d-way, %d-shot, %d-query' % (
         mode, batchsz, n_way, k_shot, k_query))
         
-        Xd = pickle.load(open('datasets/signal/2016.04C.multisnr.pkl','rb'), encoding='iso-8859-1')
-        snrs,mods = map(lambda j: sorted(list(set(map(lambda x: x[j], Xd.keys())))), [1,0])
+        #Xd = pickle.load(open('RML2016.10a_dict.pkl','rb'), encoding='iso-8859-1')
+        #snrs,mods = map(lambda j: sorted(list(set(map(lambda x: x[j], Xd.keys())))), [1,0])
+
+        speech_data = torchaudio.datasets.SPEECHCOMMANDS(root='/home/dyh/py/datasets', url='train',
+                                                         folder_in_archive='speech_commands', download=False,
+                                                         subset='training')
+        db = torch.utils.data.DataLoader(speech_data,
+                                         batch_size=2,
+                                         shuffle=True,
+                                         num_workers=1,
+                                         pin_memory=True)
+
+        speech_test = torchaudio.datasets.SPEECHCOMMANDS(root='/home/dyh/py/datasets', url='test',
+                                                         folder_in_archive='speech_commands', download=False,
+                                                         subset='testing')
+        db_test = DataLoader(speech_test,
+                             batch_size=1,
+                             shuffle=True,
+                             num_workers=1,
+                             pin_memory=True)
+
+        X_train=[]
+        Y_lbl=[]
+        for each in speech_data:
+            #print(each.shape)
+            if each[0].shape[1]!=16000:
+                continue
+            X_train.append(each[0][0].numpy())
+            #print(each[0][0].numpy().shape)
+            #print(each[2])
+            Y_lbl.append(each[2])
+        #for step, (tenSor, tenLen, clsName, tenId, num0) in enumerate(db):
+        #    if tenSor.shape[1]!=16000:
+        #        continue
+        #    X_train.append(tenSor)
+         #   Y_lbl.append(clsName)
+
+        X_test = []
+        Y_test_lbl = []
+        for each in speech_test:
+            if each[0].shape[1]!=16000:
+                continue
+            X_test.append(each[0].numpy())#i*16000
+            Y_test_lbl.append(each[2])
+        #for step, (tenSor, tenLen, clsName, tenId, num0) in enumerate(db_test):
+        #    X_test.append(tenSor)
+        #    Y_test_lbl.append(clsName)
+        print("===X_train X_text building finished.===")
         #print(Xd.keys())
         #print(len(Xd.keys()))
 
@@ -64,14 +111,14 @@ class MiniImagenet(Dataset):
         #print(snrs)
         X = [] #输入的sample 2*128的list
         lbl = [] #需要分类的label(mod,snr)
-        for mod in mods[0:5]:
-            for j in [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
+        #for mod in mods[0:5]:
+        #    for j in [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
 
-                X.append(Xd[(mod, snrs[j])])
-                for i in range(Xd[(mod, snrs[j])].shape[0]):  lbl.append((mod, snrs[j]))
+        #        X.append(Xd[(mod, snrs[j])])
+        #        for i in range(Xd[(mod, snrs[j])].shape[0]):  lbl.append((mod, snrs[j]))
 
-        X = np.vstack(X)
-        X=X.tolist()
+        #X = np.vstack(X)
+        #X=X.tolist()!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         #for mod in mods:
 
             #X.append(Xd[(mod, 0)])
@@ -84,36 +131,36 @@ class MiniImagenet(Dataset):
         #print('label长度')
         #print(len(lbl))
 
-        np.random.seed(2016)
-        n_examples = np.array(X).shape[0]
+        #np.random.seed(2016)
+        #n_examples = np.array(X).shape[0]
         #print(n_examples)
-        n_test = n_examples//20*19
-        X2=[]
-        lbl2=[]
-        for mod in mods[5:]:
-            for j in [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
+        #n_test = n_examples//20*19
+        #X2=[]
+        #lbl2=[]
+        #for mod in mods[5:]:
+        #    for j in [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
 
-                X2.append(Xd[(mod, snrs[j])])
-                for i in range(Xd[(mod, snrs[j])].shape[0]):  lbl2.append((mod, snrs[j]))
+        #        X2.append(Xd[(mod, snrs[j])])
+        #        for i in range(Xd[(mod, snrs[j])].shape[0]):  lbl2.append((mod, snrs[j]))
 
-        X2 = np.vstack(X2)
-        X2=X2.tolist()
-        X=X+X2
-        lbl=lbl+lbl2
-        n_total = np.array(X).shape[0]
+        #X2 = np.vstack(X2)
+        #X2=X2.tolist()
+        #X=X+X2
+        #lbl=lbl+lbl2
+        #n_total = np.array(X).shape[0]
         #print(n_total)
-        test_idx = np.random.choice(range(0,n_examples), size=n_test, replace=False)
-        train_idx = list(set(range(0,n_total))-set(test_idx))
+        #test_idx = np.random.choice(range(0,n_examples), size=n_test, replace=False)
+        #train_idx = list(set(range(0,n_total))-set(test_idx))
 
         #print(len(train_idx))
         #print(len(test_idx))
 
 
-        X_train = np.array(X)[train_idx]#还是输入样本的形式
-        X_test =  np.array(X)[test_idx]
-        Y_train=np.array(lbl)[train_idx]
+        #X_train = np.array(X)[train_idx]#还是输入样本的形式
+        #X_test =  np.array(X)[test_idx]
+        #Y_train=np.array(lbl)[train_idx]
         #print(len(lbl))
-        Y_test=np.array(lbl)[test_idx]
+        #Y_test=np.array(lbl)[test_idx]
         #lbl=lbl.toList();
 
         #X2 = []  # 输入的sample 2*128的list
@@ -126,10 +173,10 @@ class MiniImagenet(Dataset):
         
         if(mode=='train'):
             X=X_train;
-            lbl=Y_train
+            lbl=Y_lbl
         elif(mode=='test'):
             X=X_test
-            lbl=Y_test
+            lbl=Y_test_lbl
 
         #def to_onehot(yy):
         #    yy1 = np.zeros([len(yy), max(yy)+1])
@@ -146,11 +193,11 @@ class MiniImagenet(Dataset):
         #print(list(map(lambda x: mods.index(lbl[x][0]), test_idx)))
         #print(len(Y_test[0]))
 
-        in_shp = list(X_train.shape[1:])
+        #in_shp = list(X_train.shape[1:])
         #print(X_train.shape)
         #print(in_shp)
         #print([1]+in_shp)
-        classes = mods
+        #classes = lbl
     
         #if mode == 'train':
         #    self.transform = transforms.Compose([lambda x: Image.open(x).convert('RGB'),
@@ -169,16 +216,18 @@ class MiniImagenet(Dataset):
 
         #self.path = os.path.join(root, 'images')  # image path
         csvdata = self.loadCSV(lbl,X)  # 形成csv path，调用loadCSV，返回map
-        self.data = []
+        #print("===finish loadCSV===")
+        self.classdata = []
         self.img2label = {}
         for i, (k, v) in enumerate(csvdata.items()):
-            self.data.append(v)  # [[img1, img2, ...], [img111, ...]] 每类有一个List data的格式是必要的吗？预处理radio
+            self.classdata.append(v)  # [[img1, img2, ...], [img111, ...]] 每类有一个List data的格式是必要的吗？预处理radio
             self.img2label[k] = i + self.startidx  # {(Str)mod:label}
-        self.cls_num = len(mods)#类别的数量
+        self.cls_num = len(self.classdata)#类别的数量
         #print("类别的数量")
-        #print(len(mods))
-
+        #print(self.cls_num)
+        #print("===before create_batch====")
         self.create_batch(self.batchsz)
+        #print("===finish create_batch====")
 
     def loadCSV(self,a_lbl,a_X ):#map:class->属于改class的所有2*128组成的列表
         """
@@ -190,7 +239,7 @@ class MiniImagenet(Dataset):
         for i in range(len(a_lbl)):
             samples = a_X[i]
             
-            label0 = a_lbl[i][0]#应该改对了
+            label0 = a_lbl[i]#应该改对了
             # append filename to current label
             if label0 in dictLabels.keys():
                 dictLabels[label0].append(samples)
@@ -221,15 +270,20 @@ class MiniImagenet(Dataset):
             query_y=[]
             support_xy=[]
             query_xy=[]
-            if self.mode=='test':
-                for i in range(5):
-                    selected_cls[i]=i#test只能从前5类
+            #if self.mode=='test':
+            #    for i in range(5):
+            #        selected_cls[i]=i#test只能从前5类
             #print("测试")
-            #print(len(self.data))
-            #print(len(self.data[0]))
+            #print(len(self.classdata))
+            #print(len(self.classdata[0]))
+            #print("===一层循环===")
+            #print(b)
+            #print("===before 二层循环1===")
             for cls in selected_cls:
                 # 2. select k_shot + k_query for each class
-                selected_imgs_idx = np.random.choice(len(self.data[cls]), self.k_shot + self.k_query, False)
+                #print(len(self.classdata[cls]))
+                #print()
+                selected_imgs_idx = np.random.choice(len(self.classdata[cls]), self.k_shot + self.k_query, False)
                 np.random.shuffle(selected_imgs_idx)
                 indexDtrain = np.array(selected_imgs_idx[:self.k_shot])  # idx for Dtrain
                 indexDtest = np.array(selected_imgs_idx[self.k_shot:])  # idx for Dtest]
@@ -237,28 +291,32 @@ class MiniImagenet(Dataset):
                 support_y_temp=np.ones(self.k_shot)*cls;
                 query_y_temp=np.ones(self.k_query)*cls;
                 support_x.append(
-                    np.array(self.data[cls])[indexDtrain].tolist())  # get all images filename for current Dtrain 每类有一个list是被选中的该类的K_shot个图片样本，共有n_way项 5*1(15)*2*128
-                query_x.append(np.array(self.data[cls])[indexDtest].tolist())
+                    np.array(self.classdata[cls])[indexDtrain].tolist())  # get all images filename for current Dtrain 每类有一个list是被选中的该类的K_shot个图片样本，共有n_way项 5*1(15)*2*128
+                query_x.append(np.array(self.classdata[cls])[indexDtest].tolist())
                 support_y.append(support_y_temp);
                 query_y.append(query_y_temp);
             #random.shuffle(selected_cls)
-
+                #print(cls)
+            #print("===before 二层循环2===")
             for i in range(len(support_x)):
                 temp_xy=[support_x[i],support_y[i]]
                 support_xy.append(temp_xy)
-
+                #print(i)
+            #print("===before 二层循环3===")
             for j in range(len(query_x)):
                 t_xy=[query_x[j],query_y[j]]
                 query_xy.append(t_xy)
+                #print(j)
 
             #print(np.array(query_xy[0][0]).shape)
             # shuffle the correponding relation between support set and query set
             random.shuffle(support_xy)
             random.shuffle(query_xy)
             #print("!!!!!!!!!!!")
-            #print(np.array(query_xy).shape) support k_shot * x y拼接 * query k shot
+            #print(np.array(query_xy).shape) #support k_shot * x y拼接 * query k shot
+            #print(query_xy[0][1][0])
 
-            #5*1(15) * 2 * 1
+            #5*1(15)*2*1
             #:2: 1 and 2*128
             support_xy=np.array(support_xy).transpose(1,0,2).tolist()
             query_xy=np.array(query_xy).transpose(1,0,2).tolist()
@@ -271,13 +329,13 @@ class MiniImagenet(Dataset):
             #print(np.array(query_xy[0]).shape)
             #print(query_xy[1][0].shape)
 
-            self.support_x_batch.append(support_xy[0])  # append set to current sets有batchsz个这样的list
+            self.support_x_batch.append(support_xy[0])  # append set to current sets有batchsz个这样的list batchsz*5*15
             self.query_x_batch.append(query_xy[0])  # append sets to current sets
             self.support_y_batch.append(support_xy[1])
             self.query_y_batch.append(query_xy[1])
             #createbatch为self（此类）创建了两个list:batch并赋值gg
         #print('打印尺寸')
-        #print(np.array(self.support_x_batch).shape)
+        #print(np.array(self.support_x_batch).shape)#(400, 5, 1, 1, 16000) or (10, 5, 1, 1, 16000)
 
     def __getitem__(self, index):
         """
